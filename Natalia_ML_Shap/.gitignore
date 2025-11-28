@@ -1,0 +1,32 @@
+# Python Virtual Environment and Bytecode
+# Exclude the virtual environment directories
+venv/
+env/
+__pycache__/
+
+# Compiled Python files
+*.pyc
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Big Data and Dataset Files (Crucial for this project)
+# These files (like EMBER or PCAP data) are very large and must not be committed to Git.
+data/
+datasets/
+EMBER_raw_data/
+*.parquet
+*.csv
+*.jsonl
+*.pcap
+
+# Trained Model Artifacts
+# It's best practice to exclude large model files, as they should be regenerated 
+# by running the training script if they are too big for the repository.
+*.pkl
+*.model
+
+# Operating System and Editor Files
+# Exclude files specific to macOS and VS Code configuration
+.DS_Store
+.vscode/
