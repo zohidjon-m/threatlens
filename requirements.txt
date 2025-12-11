@@ -5,3 +5,8 @@ streamlit
 requests
 pandas
 plotly
+pyvis
+motor
+pymongo
+python-dotenv
+python-multipart
