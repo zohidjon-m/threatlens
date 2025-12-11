@@ -23,7 +23,7 @@ from typing import Iterable
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
 from pyspark.sql.types import DoubleType
-
+from pyspark.ml.feature import VectorAssembler, StandardScaler
 from config import FEATURE_COLUMNS
 
 
@@ -31,36 +31,36 @@ def _compute_connection_features(df: DataFrame) -> DataFrame:
     """Connections, unique destination IPs, bytes per source IP."""
     # connection count
     conn_count = (
-        df.groupBy("id.orig_h")
+        df.groupBy("id_orig_h")
         .count()
-        .withColumnRenamed("id.orig_h", "ip")
+        .withColumnRenamed("id_orig_h", "ip")
         .withColumnRenamed("count", "conn_count")
     )
 
     # unique destination IPs
     uniq_dest = (
-        df.groupBy("id.orig_h")
-        .agg(F.countDistinct("id.resp_h").alias("unique_dest_ips"))
-        .withColumnRenamed("id.orig_h", "ip")
+        df.groupBy("id_orig_h")
+        .agg(F.countDistinct("id_resp_h").alias("unique_dest_ips"))
+        .withColumnRenamed("id_orig_h", "ip")
     )
 
     # bytes
     bytes_sum = (
-        df.groupBy("id.orig_h")
+        df.groupBy("id_orig_h")
         .agg(
             F.sum("orig_bytes").alias("total_orig_bytes"),
             F.sum("resp_bytes").alias("total_resp_bytes"),
         )
-        .withColumnRenamed("id.orig_h", "ip")
+        .withColumnRenamed("id_orig_h", "ip")
     )
 
     # label per IP (majority label)
     label = (
-        df.groupBy("id.orig_h")
+        df.groupBy("id_orig_h")
         .agg(F.avg("label").alias("label_mean"))
         .withColumn("label", F.when(F.col("label_mean") >= 0.5, 1).otherwise(0))
         .select(
-            F.col("id.orig_h").alias("ip"),
+            F.col("id_orig_h").alias("ip"),
             "label",
         )
     )
@@ -105,20 +105,20 @@ def _compute_dns_entropy(df: DataFrame) -> DataFrame:
 
     dns = df.filter(df.logtype == "dns")
 
-    if "id.orig_h" not in dns.columns:
+    if "id_orig_h" not in dns.columns:
         return dns.select(
             F.lit(None).cast("string").alias("ip"),
             F.lit(0.0).alias("avg_dns_entropy"),
         ).limit(0)
 
-    dns = dns.select("id.orig_h", "query")
+    dns = dns.select("id_orig_h", "query")
 
     dns = dns.withColumn("entropy", entropy_udf("query"))
 
     dns_agg = (
-        dns.groupBy("id.orig_h")
+        dns.groupBy("id_orig_h")
         .agg(F.avg("entropy").alias("avg_dns_entropy"))
-        .withColumnRenamed("id.orig_h", "ip")
+        .withColumnRenamed("id_orig_h", "ip")
     )
 
     return dns_agg
@@ -129,24 +129,24 @@ def _compute_rare_ports(df: DataFrame, rarity_threshold: int = 5) -> DataFrame:
     Count how many connections per source IP use 'rare' destination ports.
     Rare = ports that appear fewer than rarity_threshold times overall.
     """
-    if "id.resp_p" not in df.columns or "id.orig_h" not in df.columns:
+    if "id.resp_p" not in df.columns or "id_orig_h" not in df.columns:
         return df.select(
             F.lit(None).cast("string").alias("ip"),
             F.lit(0.0).alias("rare_port_count"),
         ).limit(0)
 
     port_counts = (
-        df.groupBy("id.resp_p")
+        df.groupBy("id_resp_p")
         .count()
         .filter(F.col("count") < rarity_threshold)
-        .select("id.resp_p")
+        .select("id_resp_p")
     )
 
     rare = (
-        df.join(port_counts, on="id.resp_p", how="inner")
-        .groupBy("id.orig_h")
+        df.join(port_counts, on="id_resp_p", how="inner")
+        .groupBy("id_orig_h")
         .count()
-        .withColumnRenamed("id.orig_h", "ip")
+        .withColumnRenamed("id_orig_h", "ip")
         .withColumnRenamed("count", "rare_port_count")
     )
 

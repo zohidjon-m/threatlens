@@ -34,9 +34,10 @@ def _load_dir_with_label(
     Load all .log files under dir_path (JSON Zeek logs),
     attach 'label' and 'logtype' columns.
     """
+    RELEVANT_LOGS = {"conn.log", "http.log", "dns.log", "files.log"}
     files = [
         f for f in os.listdir(dir_path)
-        if f.endswith(".log")
+        if f.endswith(".log") and f in RELEVANT_LOGS
     ]
     if not files:
         raise RuntimeError(f"No .log files found in {dir_path}")
@@ -46,6 +47,11 @@ def _load_dir_with_label(
         fpath = os.path.join(dir_path, fname)
 
         df = spark.read.json(fpath)
+
+        # sanitize column names (dots → underscores)
+        for c in df.columns:
+            if "." in c:
+                df = df.withColumnRenamed(c, c.replace(".", "_"))
 
         # attach metadata
         df = df.withColumn("label", F.lit(label))
@@ -89,15 +95,28 @@ def load_all_logs(spark: SparkSession) -> DataFrame:
 
     # normalize some important numeric columns
     # if missing, they'll be null -> cast to double
+
+    if "id_resp_p" in base.columns:
+        base = base.withColumn("id_resp_p", F.col("id_resp_p").cast("int"))
+    else:
+        base = base.withColumn("id_resp_p", F.lit(None).cast("int"))
+
     for col in ["orig_bytes", "resp_bytes"]:
         if col in base.columns:
             base = base.withColumn(col, F.col(col).cast("double"))
         else:
             base = base.withColumn(col, F.lit(0.0))
 
-    if "id.resp_p" in base.columns:
-        base = base.withColumn("id.resp_p", F.col("id.resp_p").cast("int"))
-    else:
-        base = base.withColumn("id.resp_p", F.lit(None).cast("int"))
-
     return base
+
+# def main():
+#         spark = SparkSession.builder.appName("demo").getOrCreate()
+#         df = load_all_logs(spark)
+#         print("\n=== RAW LOGS SCHEMA ===")
+#         df.printSchema()
+#
+#         print("\n=== RAW LOGS SAMPLE ===")
+#         df.show(10, truncate=True)
+#
+# if __name__ == "__main__":
+#     main()

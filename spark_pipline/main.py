@@ -10,30 +10,35 @@ Steps:
 """
 
 from pyspark.sql import SparkSession
-
+from pyspark.sql.functions import when, col, isnan
 from config import MONGO_URI
 from load_logs import load_all_logs
 from feature_engineering import build_features
 from train_anomaly import train_kmeans_and_score
 from write_outputs import write_to_mongo, write_json, prepare_network_anomaly_schema
 
-
+import sys
+import os
 def create_spark() -> SparkSession:
     """
     Create SparkSession.
-    Adjust .config() calls if you want to embed MongoDB connector config here.
     """
     spark = (
         SparkSession.builder
-        .appName("ThreatLens-Member2-AnomalyPipeline")
-        # example: configure mongo connector here if using config keys
-        # .config("spark.mongodb.write.connection.uri", MONGO_URI)
+        .appName("ThreatLens-AnomalyPipeline")
+        .config(
+            "spark.jars.packages",
+            "org.mongodb.spark:mongo-spark-connector_2.12:10.3.0"
+        )
+        .config("spark.mongodb.write.connection.uri", MONGO_URI)
+        .config("spark.mongodb.read.connection.uri", MONGO_URI)
         .getOrCreate()
     )
     return spark
 
 
 def main():
+
     spark = create_spark()
 
     # 1. Load logs
