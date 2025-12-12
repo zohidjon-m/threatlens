@@ -200,9 +200,252 @@ st.markdown("""
 st.title("🛡️ ThreatLens: Network Malware Detection System")
 
 # Sidebar Navigation
-page = st.sidebar.radio("Navigate", ["📤 Dataset Upload", "🚨 Alerts Overview", "📄 File Analysis", "🕸️ Network Graph"])
+page = st.sidebar.radio("Navigate", [
+    "🚨 Alerts Overview", 
+    "📄 File Analysis", 
+    "🕸️ Network Graph", 
+    "📤 Dataset Upload" 
+])
 
-if page == "📤 Dataset Upload":
+
+if page == "🚨 Alerts Overview":
+    st.subheader("Real-Time Security Alerts")
+    
+    if st.button("🔄 Run Correlation Engine"):
+        with st.spinner("Correlating events..."):
+            try:
+                requests.post(f"{API_URL}/run-analysis")
+                st.success("Analysis complete!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"Analysis failed: {e}")
+
+    try:
+        response = requests.get(f"{API_URL}/alerts")
+        if response.status_code == 200:
+            alerts = response.json()
+            if not alerts:
+                st.info("No alerts found.")
+            else:
+                df = pd.DataFrame(alerts)
+                
+                # Metrics
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Total Alerts", len(df))
+                c2.metric("Critical Threats", len(df[df['severity'] == 'critical']) if 'severity' in df.columns else 0)
+                c3.metric("Avg Threat Score", f"{df['threat_score'].mean():.2f}" if 'threat_score' in df.columns else "0.0")
+                
+                st.dataframe(df, use_container_width=True)
+        else:
+            st.error("Backend connection failed.")
+    except Exception as e:
+        st.error(f"Backend offline: {e}")
+
+# --- PAGE 2: FILE ANALYSIS (ML + SHAP) ---
+elif page == "📄 File Analysis":
+    st.subheader("File-Level Malware Analysis")
+    
+    # 1. Input Area (Hash Only)
+    sha256_input = st.text_input("Enter SHA256 Hash", placeholder="e.g., a1b2c3d4e5f6...")
+    
+    if st.button("Analyze File"):
+        if sha256_input:
+            try:
+                response = requests.get(f"{API_URL}/file/{sha256_input.strip()}")
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    
+                    col1, col2 = st.columns(2)
+                    
+                    # Left Column: Metadata
+                    with col1:
+                        st.markdown("#### File Metadata")
+                        st.json(data.get('metadata', {}))
+                    
+                    # Right Column: ML Analysis
+                    with col2:
+                        st.markdown("#### 🧠 ML & SHAP Analysis")
+                        analysis = data.get('analysis', {})
+                        
+                        # Classification Badge
+                        classification = analysis.get('classification', 'Unknown')
+                        st.markdown(f"""
+                            <div style="background: rgba(220, 38, 38, 0.15); border: 1px solid rgba(248, 113, 113, 0.4); border-radius: 12px; padding: 15px; text-align: center; margin-bottom: 20px;">
+                                <p style="margin:0; font-size:0.8rem; color:#fca5a5;">Classification</p>
+                                <p style="margin:0; font-size:1.2rem; font-weight:bold; color:white;">{classification}</p>
+                            </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # SHAP Chart
+                        shap_data = analysis.get('shap_values', {})
+                        if shap_data:
+                            features = list(shap_data.keys())
+                            values = list(shap_data.values())
+                            
+                            fig = go.Figure(go.Bar(
+                                x=values, y=features, orientation='h',
+                                marker_color=['#ef4444' if v > 0 else '#22c55e' for v in values]
+                            ))
+                            fig.update_layout(height=250, margin=dict(l=0,r=0,t=0,b=0), 
+                                            paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', 
+                                            font_color='white')
+                            st.plotly_chart(fig, use_container_width=True)
+                        else:
+                            st.info("No SHAP explainability data available.")
+
+                else:
+                    st.error("File not found in database.")
+            except Exception as e:
+                st.error(f"Connection Error: {e}")
+        else:
+            st.warning("Please enter a SHA256 hash.")
+
+
+# --- PAGE 3: NETWORK GRAPH ---
+elif page == "🕸️ Network Graph":
+    st.subheader("Network Topology & Threat Visualization")
+
+    def get_severity_label(score):
+        if score > 0.8: return "Critical"
+        elif score > 0.6: return "High"
+        elif score > 0.3: return "Medium"
+        else: return "Normal"
+
+    severity_colors = {"Critical": "#b91c1c", "High": "#ef4444", "Medium": "#f59e0b", "Normal": "#10b981", "C2": "#ffffff"}
+
+    # --- CONTROLS ---
+    c1, c2, c3 = st.columns([1.5, 2, 1.5])
+    with c1:
+        view_mode = st.radio("Mode", ["Full Topology", "Single IP"], horizontal=True, label_visibility="collapsed")
+    with c2:
+        selected_severities = st.multiselect("Filter Severity", ["Critical", "High", "Medium", "Normal"], default=[], placeholder="Select Severity (Empty = All)")
+        filter_list = selected_severities if selected_severities else ["Critical", "High", "Medium", "Normal"]
+    with c3:
+        threshold = st.slider("Min Anomaly Score", 0.0, 1.0, 0.0, step=0.01)
+
+    st.divider()
+
+    # --- MODE 1: SINGLE IP (RESTORED GRAPH) ---
+    if view_mode == "Single IP":
+        c_search, c_btn = st.columns([3, 1])
+        with c_search:
+            ip_input = st.text_input("IP Address", "192.168.1.5", label_visibility="collapsed")
+        with c_btn:
+            fetch_btn = st.button("Fetch Graph", use_container_width=True)
+
+        # Logic to handle both button click and persistent state
+        if fetch_btn:
+            try:
+                resp = requests.get(f"{API_URL}/network/{ip_input}")
+                if resp.status_code == 200:
+                    st.session_state['single_data'] = resp.json()
+                else:
+                    st.error("IP Not Found")
+                    st.session_state.pop('single_data', None)
+            except Exception as e:
+                st.error(f"Error: {e}")
+
+        # If data exists, draw the graph
+        if 'single_data' in st.session_state:
+            data = st.session_state['single_data']
+            score = data.get('anomaly_score', 0)
+            sev = get_severity_label(score)
+
+            # APPLY FILTERS (Severity + Threshold)
+            if (score >= threshold) and (sev in filter_list):
+                c_metrics, c_graph = st.columns([1, 3])
+                
+                with c_metrics:
+                    st.metric("Anomaly Score", f"{score:.3f}")
+                    st.metric("Severity", sev)
+                    st.json(data.get('features', {}))
+
+                with c_graph:
+                    net = Network(height='500px', width='100%', bgcolor='#0e1117', font_color='white')
+                    
+                    # Central Node
+                    net.add_node(ip_input, label=ip_input, color=severity_colors.get(sev, "#555"), size=30, title=f"Score: {score}")
+                    
+                    # Neighbor Nodes (Simulated based on connection count)
+                    feat = data.get('features', {})
+                    count = int(feat.get('unique_dst_ips', 0))
+                    
+                    for i in range(min(count, 15)):
+                        neighbor_ip = f"10.0.0.{i+10}"
+                        net.add_node(neighbor_ip, size=15, color="#555", title="Connected Host")
+                        net.add_edge(ip_input, neighbor_ip, color="rgba(255,255,255,0.2)")
+
+                    path = 'html_files'
+                    if not os.path.exists(path): os.makedirs(path)
+                    net.save_graph(f'{path}/single_graph.html')
+                    with open(f'{path}/single_graph.html', 'r', encoding='utf-8') as f:
+                        components.html(f.read(), height=520)
+            else:
+                st.warning(f"IP found, but hidden by filters. (Score: {score:.2f}, Severity: {sev})")
+
+    # --- MODE 2: FULL TOPOLOGY (C2 SERVER LOGIC) ---
+    elif view_mode == "Full Topology":
+        if 'full_net_data' not in st.session_state:
+            if st.button("Load Full Topology"):
+                with st.spinner("Fetching data..."):
+                    try:
+                        resp = requests.get(f"{API_URL}/network-all?limit=300")
+                        if resp.status_code == 200:
+                            st.session_state['full_net_data'] = resp.json()
+                            st.rerun()
+                    except Exception as e: st.error(str(e))
+        else:
+            if st.button("🔄 Refresh"):
+                st.session_state.pop('full_net_data', None)
+                st.rerun()
+
+        if 'full_net_data' in st.session_state:
+            data_pack = st.session_state['full_net_data']
+            all_nodes = data_pack.get('nodes', [])
+            total = data_pack.get('total_count', 0)
+            
+            filtered = []
+            for node in all_nodes:
+                score = node.get('anomaly_score', 0)
+                sev = get_severity_label(score)
+                if score >= threshold and sev in filter_list:
+                    filtered.append((node, sev))
+
+            st.caption(f"Showing **{len(filtered)}** nodes (Total DB: {total})")
+
+            if filtered:
+                net = Network(height='650px', width='100%', bgcolor='#0e1117', font_color='white')
+                net.force_atlas_2based()
+                
+                if "Critical" in filter_list or "High" in filter_list:
+                    net.add_node("C2_SERVER", label="C2 SERVER (Attacker)", color="#ffffff", shape="diamond", size=40)
+                
+                if "Normal" in filter_list:
+                    net.add_node("GATEWAY", label="Corp Gateway", color="#10b981", shape="square", size=25)
+
+                for node_data, sev in filtered:
+                    ip = node_data.get('ip')
+                    # Add the IP node first
+                    net.add_node(ip, label=ip, title=f"{sev}\nScore: {node_data.get('anomaly_score'):.2f}", color=severity_colors.get(sev, "#555"), size=15)
+                    
+                    # Connect based on severity
+                    if sev == "Critical": 
+                        net.add_edge(ip, "C2_SERVER", color="#b91c1c", width=2)
+                    elif sev == "High": 
+                        net.add_edge(ip, "C2_SERVER", color="#ef4444", dashes=True)
+                    elif sev == "Normal": 
+                        net.add_edge(ip, "GATEWAY", color="#064e3b")
+
+                path = 'html_files'
+                if not os.path.exists(path): os.makedirs(path)
+                net.save_graph(f'{path}/full_graph.html')
+                with open(f'{path}/full_graph.html', 'r', encoding='utf-8') as f:
+                    components.html(f.read(), height=670)
+            else:
+                st.warning("No nodes match filter.")
+
+elif page == "📤 Dataset Upload":
     st.subheader("Upload Training Datasets")
     st.markdown("Upload your malicious, baseline, and file transfer datasets to train the system")
     
@@ -278,225 +521,3 @@ if page == "📤 Dataset Upload":
     
     st.divider()
     st.info("💡 **Tip:** Upload CSV, JSON, or Zeek LOG files. The system will automatically parse and store them in MongoDB.")
-
-elif page == "🚨 Alerts Overview":
-    st.subheader("Real-Time Security Alerts")
-
-    if st.button("🔄 Run Correlation Engine"):
-        with st.spinner("Correlating events from Spark & ML models..."):
-            try:
-                requests.post(f"{API_URL}/run-analysis")
-                st.success("Analysis complete! Refreshing...")
-                st.rerun()
-            except Exception as e:
-                st.error(f"Analysis failed: {e}")
-    try:
-        response = requests.get(f"{API_URL}/alerts")
-        if response.status_code == 200:
-            alerts = response.json()
-            
-            if len(alerts) == 0:
-                st.warning("No alerts found. Upload datasets and run analysis first.")
-            else:
-                df = pd.DataFrame(alerts)
-                
-                # --- METRICS ROW ---
-                col1, col2, col3, col4 = st.columns(4)
-                
-                ransomware_count = 0
-                if 'type' in df.columns:
-                    ransomware_count = len(df[df['type'].str.contains("Ransomware", case=False, na=False)])
-                
-                col1.metric("Total Alerts", len(df))
-                col2.metric("Critical Threats", len(df[df['severity'] == 'critical']) if 'severity' in df.columns else 0)
-                col3.metric("Avg Threat Score", f"{df['threat_score'].mean():.2f}" if 'threat_score' in df.columns else "N/A")
-                col4.metric("Active Ransomware", ransomware_count)
-
-                st.divider()
-                st.markdown("#### 📋 Live Alert Log")
-                
-                # Display table
-                st.dataframe(df, use_container_width=True)
-        else:
-            st.error("Failed to fetch alerts from backend")
-    except Exception as e:
-        st.error(f"Could not connect to backend: {str(e)}")
-        st.info("Make sure the backend is running: `python backend.py`")
-
-# --- PAGE 2: FILE ANALYSIS (ML + SHAP) ---
-elif page == "📄 File Analysis":
-    st.subheader("File-Level Malware Analysis")
-    
-    sha256_input = st.text_input("Enter SHA256 Hash", placeholder="e.g., abc123def456...")
-    
-    if st.button("Analyze File"):
-        if sha256_input:
-            try:
-                response = requests.get(f"{API_URL}/file/{sha256_input}")
-                if response.status_code == 200:
-                    data = response.json()
-                    
-                    col1, col2 = st.columns(2)
-                    
-                    with col1:
-                        st.markdown("#### File Metadata")
-                        if 'metadata' in data:
-                            st.json(data['metadata'])
-                        else:
-                            st.json(data)
-                    
-                    with col2:
-                        st.markdown("#### 🧠 ML & SHAP Analysis")
-                        
-                        if 'analysis' in data:
-                            analysis = data['analysis']
-                            
-                            # 1. Display Top-Level Metrics
-                            c1, c2 = st.columns(2)
-                            c1.metric("Malware Probability", f"{analysis.get('malware_prob', analysis.get('malware_probability', 0)):.2%}")
-
-                            with c2:
-                                # Custom HTML Badge for Classification to prevent text cutoff
-                                classification = analysis.get('classification', 'Unknown')
-                                st.markdown(f"""
-                                    <div style="
-                                    background: linear-gradient(135deg, rgba(239, 68, 68, 0.15) 0%, rgba(185, 28, 28, 0.15) 100%);
-                                    border: 1px solid rgba(248, 113, 113, 0.4);
-                                    border-radius: 12px;
-                                    padding: 18px;
-                                    text-align: center;
-                                    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-                                    ">
-                                    <p style="margin: 0; font-size: 0.85rem; color: #fca5a5; font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase;">Classification</p>
-                                    <p style="margin: 5px 0 0 0; font-size: 1.2rem; font-weight: 700; color: #ffffff; word-wrap: break-word;">{classification}</p>
-                                    </div>
-                                    """, unsafe_allow_html=True)
-                            
-                            st.divider()
-                            
-                            # 2. SHAP Feature Importance Chart
-                            shap_data = analysis.get('shap_values', {})
-                            
-                            if shap_data:
-                                st.markdown("##### 🔍 Feature Contributions (SHAP Values)")
-                                
-                                # Convert dictionary to lists for plotting
-                                features = list(shap_data.keys())
-                                values = list(shap_data.values())
-                                
-                                # Create Plotly Horizontal Bar Chart
-                                fig = go.Figure(go.Bar(
-                                    x=values,
-                                    y=features,
-                                    orientation='h',
-                                    marker_color=['#ef4444' if v > 0 else '#22c55e' for v in values] # Red for risky, Green for safe
-                                ))
-                                
-                                fig.update_layout(
-                                    plot_bgcolor='rgba(0,0,0,0)',
-                                    paper_bgcolor='rgba(0,0,0,0)',
-                                    font_color='white',
-                                    margin=dict(l=0, r=0, t=0, b=0),
-                                    height=250,
-                                    xaxis_title="Impact on Malicious Score"
-                                )
-                                
-                                st.plotly_chart(fig, use_container_width=True)
-                            else:
-                                st.info("No SHAP values available for this file.")
-                                
-                            # 3. Static Features (Expandable)
-                            with st.expander("View Static Features"):
-                                st.json(analysis.get('static_features', {}))
-                                
-                        else:
-                            st.warning("No ML analysis data available")
-                else:
-                    st.error("File not found in database")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-        else:
-            st.warning("Please enter a SHA256 hash")
-
-# --- PAGE 3: NETWORK GRAPH ---
-elif page == "🕸️ Network Graph":
-    st.subheader("Network Topology & Threat Visualization")
-    
-    ip_input = st.text_input("Enter IP Address", placeholder="e.g., 192.168.1.5")
-    
-    if st.button("Fetch Network Data"):
-        if ip_input:
-            try:
-                response = requests.get(f"{API_URL}/network/{ip_input}")
-                if response.status_code == 200:
-                    data = response.json()
-                    features = data.get('features', {})
-                    anomaly_score = data.get('anomaly_score', 0)
-                    
-                    # 1. Top Metrics Row
-                    m1, m2, m3 = st.columns(3)
-                    m1.metric("Anomaly Score", f"{anomaly_score:.2f}")
-                    m2.metric("Unique Connections", features.get('unique_dst_ips', 0))
-                    m3.metric("Total Bytes", f"{(features.get('avg_bytes_sent', 0) + features.get('avg_bytes_received', 0)) / 1024:.1f} KB")
-                    
-                    st.divider()
-                    
-                    # 2. Graph Visualization Logic
-                    col_graph, col_details = st.columns([3, 1])
-                    
-                    with col_graph:
-                        st.markdown("#### 🔗 Interaction Graph")
-                        
-                        # Initialize PyVis Network
-                        net = Network(height='500px', width='100%', bgcolor='#111827', font_color='white')
-                        
-                        # Add Central Node (The Suspect IP)
-                        # Red if high anomaly score, Green if low
-                        center_color = '#ef4444' if anomaly_score > 0.5 else '#22c55e'
-                        net.add_node(ip_input, label=ip_input, title=f"Score: {anomaly_score}", color=center_color, size=30)
-                        
-                        # Add Neighbor Nodes (Simulated based on 'unique_dst_ips')
-                        # In a real app, you'd fetch the specific list of connected IPs. 
-                        # Here we visualize the COUNT of connections.
-                        connection_count = int(features.get('unique_dst_ips', 0))
-                        
-                        # Limit nodes to 20 to prevent crashing browser if count is huge
-                        display_limit = min(connection_count, 20)
-                        
-                        for i in range(display_limit):
-                            # Generate a dummy IP label for visualization
-                            neighbor_ip = f"10.0.0.{i+10}"
-                            net.add_node(neighbor_ip, label=neighbor_ip, color='#3b82f6', size=15)
-                            net.add_edge(ip_input, neighbor_ip, color='rgba(255,255,255,0.3)')
-                        
-                        # Configure physics for cool animation
-                        net.repulsion(node_distance=100, spring_length=200)
-                        
-                        # Save and Render
-                        path = 'html_files'
-                        if not os.path.exists(path):
-                            os.makedirs(path)
-                        filename = f'{path}/network_graph.html'
-                        net.save_graph(filename)
-                        
-                        # Read and display HTML
-                        with open(filename, 'r', encoding='utf-8') as f:
-                            source_code = f.read()
-                        components.html(source_code, height=520)
-                        
-                        if connection_count > 20:
-                            st.caption(f"*Displaying 20 out of {connection_count} connections*")
-
-                    with col_details:
-                        st.markdown("#### 📊 Feature Details")
-                        st.json(features)
-
-                else:
-                    st.error("IP address not found in database")
-            except Exception as e:
-                st.error(f"Error: {str(e)}")
-        else:
-            st.warning("Please enter an IP address")
-            
-    st.divider()
-    st.info("💡 **Tip:** This graph visualizes the 'Unique Destination IPs' count. In a full deployment, these would be real connected IP addresses.")
