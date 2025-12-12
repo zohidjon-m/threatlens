@@ -36,7 +36,7 @@ def prepare_network_anomaly_schema(scored_df: DataFrame) -> DataFrame:
     df = scored_df.select(
         F.col("ip"),
         F.col("anomaly_score"),
-
+        F.col("severity"),
         F.struct(
             F.col("conn_count").alias("num_connections"),
             F.col("unique_dest_ips").alias("unique_dst_ips"),
@@ -58,9 +58,11 @@ def write_to_mongo(df: DataFrame, mongo_uri: str) -> None:
         mongodb://localhost:27017/threatlens.anomaly_scores
     """
     (
-        df.write.format("mongodb")
-        .mode("overwrite")
-        .option("uri", mongo_uri)
+        df.write
+        .format("mongodb")
+        .mode("append")
+        .option("database", "logsdb")
+        .option("collection", "network_anomalies")
         .save()
     )
 
