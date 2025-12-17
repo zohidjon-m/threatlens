@@ -261,7 +261,22 @@ elif page == "📄 File Analysis":
                     # Left Column: Metadata
                     with col1:
                         st.markdown("#### File Metadata")
-                        st.json(data.get('metadata', {}))
+                        meta = data.get('metadata', {})
+    
+                        mc1, mc2 = st.columns(2)
+                        mc3, mc4 = st.columns(2)
+    
+                        with mc1: 
+                            st.metric("📂 File Type", meta.get("file_type", "Unknown"))
+                        with mc2: 
+                            st.metric("📏 File Size", str(meta.get("file_size", "N/A")))
+                        with mc3: 
+                            st.metric("🧩 Entropy", str(meta.get("entropy", "N/A")))
+                        with mc4: 
+                            imphash = meta.get("import_hash", "N/A")
+                            display_hash = f"{imphash[:8]}..." if imphash and len(str(imphash)) > 8 else imphash
+                            st.metric("#️⃣ Import Hash", display_hash)
+                    
                     
                     # Right Column: ML Analysis
                     with col2:

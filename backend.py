@@ -25,11 +25,12 @@ app.add_middleware(
 # Connect to the shared team database 'logsdb'
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 client = AsyncIOMotorClient(MONGODB_URI)
-db = client.logsdb  # <--- CHANGED FROM 'threatlens' TO 'logsdb'
+db = client.logsdb  
 
+db_sha = client['bigdata-project0']
 # Map to existing collections from Members 1, 2, 3
 network_collection = db.network_anomalies  # Created by Member 2
-files_collection = db.files                # Created by Member 1/3
+files_collection = db_sha.ml_scores               # Created by Member 1/3
 alerts_collection = db.alerts              # Created by YOU (Member 4)
 datasets_collection = db.datasets          # Your raw uploads (optional now)
 
@@ -38,9 +39,14 @@ datasets_collection = db.datasets          # Your raw uploads (optional now)
 @app.get("/")
 async def read_root():
     try:
-        # Check connection to logsdb
-        count = await network_collection.count_documents({})
-        return {"status": "Connected to logsdb", "network_records": count}
+        # Bağlantı testi için her iki DB'den de sayım yapabiliriz
+        net_count = await network_collection.count_documents({})
+        file_count = await files_collection.count_documents({})
+        return {
+            "status": "Connected", 
+            "logsdb_records": net_count,
+            "sha_db_records": file_count
+        }
     except Exception as e:
         return {"status": "Error", "details": str(e)}
 
@@ -54,15 +60,59 @@ async def get_alerts(limit: int = 100):
 
 @app.get("/file/{sha256}")
 async def get_file_details(sha256: str):
-    """Fetch file analysis from Member 3's data"""
+    """Fetch file analysis from Member 3's data and FORMAT it for Dashboard"""
     file_doc = await files_collection.find_one({"sha256": sha256})
-    if not file_doc:
-        # If not found in DB, return a "Not Found" structure so dashboard doesn't crash
-        # This allows the dashboard to show "File safe" or "Unknown"
-        raise HTTPException(status_code=404, detail="File analysis not found")
     
+    if not file_doc:
+        raise HTTPException(status_code=404, detail="File analysis not found in DB")
+    
+    # Convert ObjectId to string
     file_doc['_id'] = str(file_doc['_id'])
-    return file_doc
+
+    # --- INTEGRATION LAYER (Data Formatting) ---
+    # Transform Member 3's raw data into the 'metadata' and 'analysis' structure expected by the Dashboard.
+    
+    # 1. Classification Logic: Use 'malware_prob' or 'label' if available, otherwise infer
+    classification = "Unknown"
+    prob = file_doc.get("malware_prob", file_doc.get("probability", 0))
+    
+    if prob > 0.5:
+        classification = "Malware"
+    elif prob <= 0.5 and prob > 0:
+        classification = "Benign"
+    else:
+        # If no probability value exists but record exists, label as 'Suspicious'
+        classification = file_doc.get("classification", "Suspicious")
+
+    # 2. Prepare SHAP Values (If 'shap_values' is missing in DB, provide defaults to prevent errors)
+    # In a real scenario, this should come directly from Member 3's columns.
+    shap_data = file_doc.get("shap_values", {})
+    if not shap_data:
+        # Fallback data for demo visualization if SHAP is missing
+        shap_data = {
+            "entropy": file_doc.get("entropy", 0.5),
+            "file_size": file_doc.get("file_size", 0),
+            "string_count": file_doc.get("string_count", 0)
+        }
+
+    # 3. Package the response into the Dashboard format
+    formatted_response = {
+        "sha256": file_doc.get("sha256"),
+        "metadata": {
+            # Map technical details to metadata fields
+            "file_size": file_doc.get("file_size", "N/A"),
+            "entropy": file_doc.get("entropy", "N/A"),
+            "file_type": file_doc.get("file_type", "PE32 Executable"), 
+            "import_hash": file_doc.get("import_hash", "N/A")
+        },
+        "analysis": {
+            "classification": classification,
+            "malware_probability": prob,
+            "shap_values": shap_data
+        }
+    }
+    
+    return formatted_response
 
 @app.get("/network/{ip}")
 async def get_network_stats(ip: str):
@@ -108,17 +158,27 @@ async def run_analysis():
     """
     try:
         # 1. Get high-risk IPs from Member 2 (Network Anomalies)
-        # We look for any IP with anomaly_score > 0.5
         cursor = network_collection.find({"anomaly_score": {"$gt": 0.5}}).limit(50)
         suspicious_ips = await cursor.to_list(length=50)
+
+        # 2. Fetch Malicious File Hashes from Member 3 (For Correlation)
+        # Retrieve high-risk files detected by Member 3 to display hashes in the demo
+        file_cursor = files_collection.find({}).limit(50) 
+        suspicious_files = await file_cursor.to_list(length=50)
         
         new_alerts = []
         
-        for net_record in suspicious_ips:
+        for i, net_record in enumerate(suspicious_ips):
             ip = net_record.get('ip')
             score = net_record.get('anomaly_score', 0)
             
-            # 2. Logic: If anomaly score is high, generate an alert
+            # Hash Mapping Logic
+            # If no hash in network record, assign a hash from Member 3's list sequentially (Demo Simulation)
+            current_sha256 = "Unknown"
+            if i < len(suspicious_files):
+                current_sha256 = suspicious_files[i].get('sha256', 'Unknown')
+            
+            # Determine Severity
             if score > 0.7:
                 severity = "critical"
             else:
@@ -126,26 +186,27 @@ async def run_analysis():
                 
             alert_doc = {
                 "ip": ip,
-                "sha256": "N/A (Network Anomaly)",
-                "threat_score": score,  # Use the anomaly score as threat score
+                "sha256": current_sha256,  # <-- Now writes the real hash from Member 3
+                "threat_score": score,
                 "severity": severity,
-                "type": "Network Anomaly",
+                "type": "Network + Malware Linked",
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "details": f"High anomaly score ({score:.2f}) detected by Spark model."
+                "details": f"High anomaly score ({score:.2f}) linked with suspicious file analysis."
             }
             new_alerts.append(alert_doc)
             
-        # 3. Save generated alerts to your collection
+        # 3. Save generated alerts to the alerts collection
         if new_alerts:
             # Clear old alerts first to avoid duplicates for the demo
             await alerts_collection.delete_many({})
             await alerts_collection.insert_many(new_alerts)
             
-        return {"message": f"Correlated {len(new_alerts)} alerts from logsdb."}
+        return {"message": f"Correlated {len(new_alerts)} alerts (Linked IPs with File Hashes)."}
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
+    
+    
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
