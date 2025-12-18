@@ -2,9 +2,9 @@
 Load and normalize Zeek logs into a single Spark DataFrame.
 
 The output DataFrame has at least:
-- id.orig_h (source IP)
-- id.resp_h (destination IP)
-- id.resp_p (destination port)
+- id_orig_h (source IP)
+- id_resp_h (destination IP)
+- id_resp_p (destination port)
 - orig_bytes
 - resp_bytes
 - logtype
