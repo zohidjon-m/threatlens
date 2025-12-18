@@ -13,7 +13,7 @@ OUTPUT_DIR = "/mnt/d/sejong_major/projects/threatlens/dataset/output"
 # MongoDB connection (used by write_outputs.py)
 # Example full URI for a collection:
 #   "mongodb://localhost:27017/threatlens.anomaly_scores"
-MONGO_URI = "mongodb+srv://bigdata-project0:5yQbyhWiQeAWtDQ2@cluster0.pydvesz.mongodb.net/logsdb"
+MONGO_URI = "...."
 
 # KMeans parameters
 KMEANS_K = 2            # 2 clusters: normal vs suspicious-ish
