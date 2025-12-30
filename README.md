@@ -55,6 +55,21 @@ PCAP Files
 ![ThreatLens](docs/architecture.png)
 
 ---
+### Network Topology & Threat Visualization
+The dashboard provides an interactive graph view of network entities, highlighting anomalous hosts, C2-style fan-out patterns, and severity-weighted connections.
+
+![Network Graph View](docs/network_per_ip.png)
+
+The full topology view enables analysts to identify large-scale communication patterns, including centralized command-and-control–like structures and distributed scanning behavior.
+
+![Full Network Topology](docs/network_grpah.png)
+
+
+## Threat Correlation & Alerts
+
+ThreatLens correlates network-level anomalies with file-based malware indicators to generate prioritized security alerts. Each alert includes severity, threat score, timestamps, and linked evidence.
+
+![Alerts Overview](docs/alerts.png)
 
 ## Core Components
 

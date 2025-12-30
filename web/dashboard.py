@@ -197,21 +197,21 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-st.title("🛡️ ThreatLens: Network Malware Detection System")
+st.title("ThreatLens: Network Malware Detection System")
 
 # Sidebar Navigation
 page = st.sidebar.radio("Navigate", [
-    "🚨 Alerts Overview", 
-    "📄 File Analysis", 
-    "🕸️ Network Graph", 
-    "📤 Dataset Upload" 
+    "Alerts Overview",
+    "File Analysis",
+    "Network Graph",
+    "Dataset Upload"
 ])
 
 
-if page == "🚨 Alerts Overview":
-    st.subheader("Real-Time Security Alerts")
+if page == "Alerts Overview":
+    st.subheader("Security Alerts")
     
-    if st.button("🔄 Run Correlation Engine"):
+    if st.button("Run Correlation Engine"):
         with st.spinner("Correlating events..."):
             try:
                 requests.post(f"{API_URL}/run-analysis")
@@ -242,7 +242,7 @@ if page == "🚨 Alerts Overview":
         st.error(f"Backend offline: {e}")
 
 # --- PAGE 2: FILE ANALYSIS (ML + SHAP) ---
-elif page == "📄 File Analysis":
+elif page == "File Analysis":
     st.subheader("File-Level Malware Analysis")
     
     # 1. Input Area (Hash Only)
@@ -267,20 +267,20 @@ elif page == "📄 File Analysis":
                         mc3, mc4 = st.columns(2)
     
                         with mc1: 
-                            st.metric("📂 File Type", meta.get("file_type", "Unknown"))
+                            st.metric("File Type", meta.get("file_type", "Unknown"))
                         with mc2: 
-                            st.metric("📏 File Size", str(meta.get("file_size", "N/A")))
+                            st.metric("File Size", str(meta.get("file_size", "N/A")))
                         with mc3: 
-                            st.metric("🧩 Entropy", str(meta.get("entropy", "N/A")))
+                            st.metric("Entropy", str(meta.get("entropy", "N/A")))
                         with mc4: 
                             imphash = meta.get("import_hash", "N/A")
                             display_hash = f"{imphash[:8]}..." if imphash and len(str(imphash)) > 8 else imphash
-                            st.metric("#️⃣ Import Hash", display_hash)
+                            st.metric("#️ Import Hash", display_hash)
                     
                     
                     # Right Column: ML Analysis
                     with col2:
-                        st.markdown("#### 🧠 ML & SHAP Analysis")
+                        st.markdown("####  ML & SHAP Analysis")
                         analysis = data.get('analysis', {})
                         
                         # Classification Badge
@@ -318,7 +318,7 @@ elif page == "📄 File Analysis":
 
 
 # --- PAGE 3: NETWORK GRAPH ---
-elif page == "🕸️ Network Graph":
+elif page == "Network Graph":
     st.subheader("Network Topology & Threat Visualization")
 
     def get_severity_label(score):
@@ -411,7 +411,7 @@ elif page == "🕸️ Network Graph":
                             st.rerun()
                     except Exception as e: st.error(str(e))
         else:
-            if st.button("🔄 Refresh"):
+            if st.button(" Refresh"):
                 st.session_state.pop('full_net_data', None)
                 st.rerun()
 
@@ -460,7 +460,7 @@ elif page == "🕸️ Network Graph":
             else:
                 st.warning("No nodes match filter.")
 
-elif page == "📤 Dataset Upload":
+elif page == "Dataset Upload":
     st.subheader("Upload Training Datasets")
     st.markdown("Upload your malicious, baseline, and file transfer datasets to train the system")
     
@@ -484,7 +484,7 @@ elif page == "📤 Dataset Upload":
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.markdown("### 🦠 Malicious Dataset")
+        st.markdown("###  Malicious Dataset")
         malicious_file = st.file_uploader("Upload malicious data (CSV/JSON/LOG)", type=['csv', 'json', 'log'], key='malicious')
         if malicious_file and st.button("Upload Malicious", key='btn_malicious'):
             with st.spinner("Uploading..."):
@@ -493,7 +493,7 @@ elif page == "📤 Dataset Upload":
                     response = requests.post(f"{API_URL}/upload/malicious", files=files)
                     if response.status_code == 200:
                         result = response.json()
-                        st.success(f"✅ {result['message']}")
+                        st.success(f" {result['message']}")
                         st.rerun()
                     else:
                         st.error(f"Upload failed: {response.text}")
@@ -501,7 +501,7 @@ elif page == "📤 Dataset Upload":
                     st.error(f"Error: {str(e)}")
     
     with col2:
-        st.markdown("### ✅ Baseline Dataset")
+        st.markdown("###  Baseline Dataset")
         baseline_file = st.file_uploader("Upload baseline data (CSV/JSON/LOG)", type=['csv', 'json', 'log'], key='baseline')
         if baseline_file and st.button("Upload Baseline", key='btn_baseline'):
             with st.spinner("Uploading..."):
@@ -510,7 +510,7 @@ elif page == "📤 Dataset Upload":
                     response = requests.post(f"{API_URL}/upload/baseline", files=files)
                     if response.status_code == 200:
                         result = response.json()
-                        st.success(f"✅ {result['message']}")
+                        st.success(f" {result['message']}")
                         st.rerun()
                     else:
                         st.error(f"Upload failed: {response.text}")
@@ -518,7 +518,7 @@ elif page == "📤 Dataset Upload":
                     st.error(f"Error: {str(e)}")
     
     with col3:
-        st.markdown("### 📁 File Transfer Dataset")
+        st.markdown("### File Transfer Dataset")
         file_transfer_file = st.file_uploader("Upload file transfer data (CSV/JSON/LOG)", type=['csv', 'json', 'log'], key='file_transfer')
         if file_transfer_file and st.button("Upload File Transfer", key='btn_file_transfer'):
             with st.spinner("Uploading..."):
@@ -527,7 +527,7 @@ elif page == "📤 Dataset Upload":
                     response = requests.post(f"{API_URL}/upload/file-transfer", files=files)
                     if response.status_code == 200:
                         result = response.json()
-                        st.success(f"✅ {result['message']}")
+                        st.success(f" {result['message']}")
                         st.rerun()
                     else:
                         st.error(f"Upload failed: {response.text}")
@@ -535,4 +535,4 @@ elif page == "📤 Dataset Upload":
                     st.error(f"Error: {str(e)}")
     
     st.divider()
-    st.info("💡 **Tip:** Upload CSV, JSON, or Zeek LOG files. The system will automatically parse and store them in MongoDB.")
+    st.info("**Tip:** Upload CSV, JSON, or Zeek LOG files. The system will automatically parse and store them in MongoDB.")
