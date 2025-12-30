@@ -51,9 +51,9 @@ PCAP Files
 → MongoDB  
 → Analyst Dashboard
 
-```markdown
+
 ![ThreatLens](docs/architecture.png)
-````
+
 ---
 
 ## Core Components
