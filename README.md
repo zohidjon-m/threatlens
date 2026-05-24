@@ -103,7 +103,6 @@ ThreatLens correlates network-level anomalies with file-based malware indicators
 - SHAP  
 - MongoDB  
 - Streamlit (Dashboard)  
-- Docker (optional / planned)  
 
 ---
 
@@ -114,10 +113,6 @@ ThreatLens correlates network-level anomalies with file-based malware indicators
 ✔ SHAP explainability  
 ✔ Database integration  
 ✔ Dashboard prototype  
-
-🚧 Real-time streaming (Kafka) – planned  
-🚧 Production hardening – planned  
-🚧 Cloud deployment – planned  
 
 ---
 
@@ -138,8 +133,7 @@ It demonstrates **how such systems are architected and built**.
 
 threatlens/  
 ├── ml_pipeline/  
-├── spark_pipeline/  
-├── zeek_logs/  
+├── spark_pipeline/   
 ├── web/   
 ├── docs/  
 └── README.md  
@@ -152,7 +146,6 @@ threatlens/
 - ML / Big Data engineers  
 - SOC tooling developers  
 - Students building real systems  
-- Recruiters evaluating end-to-end engineering ability  
 
 ---
 
@@ -167,13 +160,13 @@ Not intended for production deployment without further hardening.
 
 Built and maintained by 
 
-**Zohidjon Mahmudjonov** - Big Data & AI Engineer / CS @ Sejong Univeristy
+**Zohidjon Mahmudjonov** - CS @ Sejong Univeristy
 
-**Nicholas Lexiene** - Network Engineer / CS @ Sejong Univeristy
+**Nicholas Lexiene** -  CS @ Sejong Univeristy
 
-**Natalia Perez** - ML Engineer / AI & Robotics @ Universitat Jaume I
+**Natalia Perez** -  AI & Robotics @ Universitat Jaume I
 
-**Iris Akdemir** - Software Engineer / CS @ Özyeğin University
+**Iris Akdemir** - CS @ Özyeğin University
 
 ---
 
