@@ -1,6 +1,3 @@
-### Presentation & Demo Video - [link](https://drive.google.com/file/d/1YyV5KlUs3L0DJ-XGHfJCyljK6--a6aqB/view?usp=sharing)
-
-
 # ThreatLens  
 **File-Aware Network Malware Detection & Analytics Platform**
 
